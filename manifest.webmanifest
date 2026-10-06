@@ -1,0 +1,9 @@
+{
+  "name": "Well Go",
+  "short_name": "Well Go",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0c1218",
+  "theme_color": "#182330",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
