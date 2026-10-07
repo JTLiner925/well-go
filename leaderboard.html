@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Well Go · Leaderboard</title>
+  <style>
+    :root{--bg:#ffffff;--card:#f4f8f8;--ink:#182330;--mute:#5f6b78;--line:#dfe8e8;--brand:#33cccc;--brand-d:#0b8585;--navy:#182330;
+      --gold:#f0b429;--silver:#b8c2cc;--bronze:#c98a52}
+    @media (prefers-color-scheme:dark){:root{--bg:#191919;--card:#232b33;--ink:#eef4f6;--mute:#9bb0bd;--line:#2f3a45;--brand-d:#33cccc}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+    body{padding:10px 12px 14px;max-width:760px;margin:0 auto}
+    .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .top h1{font-size:15px;flex:1;display:flex;align-items:center;gap:6px;white-space:nowrap}
+    .seg{display:flex;background:var(--card);border-radius:10px;padding:3px}
+    .seg button{border:0;background:none;color:var(--mute);font:600 12.5px inherit;font-family:inherit;padding:6px 12px;border-radius:8px;cursor:pointer}
+    .seg button.on{background:var(--navy);color:#fff}
+    .stage{background:linear-gradient(160deg,#182330,#0f6f73);border-radius:18px;padding:18px 10px 0;color:#fff;overflow:hidden}
+    .podium{display:flex;align-items:flex-end;justify-content:center;gap:10px}
+    .spot{flex:1;max-width:190px;text-align:center}
+    .spot .who{display:flex;flex-direction:column;align-items:center;gap:3px;padding-bottom:8px}
+    .ava{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:18px;color:#fff;border:3px solid rgba(255,255,255,.9);box-shadow:0 2px 8px rgba(0,0,0,.35)}
+    .spot.first .ava{width:62px;height:62px;font-size:22px;border-color:var(--gold)}
+    .crown{font-size:22px;line-height:1;height:22px}
+    .name{font-weight:700;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pts{font-size:12.5px;opacity:.92}.pts b{font-size:15px}
+    .block{border-radius:12px 12px 0 0;display:grid;place-items:center;font-weight:900;font-size:26px;color:rgba(255,255,255,.95)}
+    .first .block{height:96px;background:linear-gradient(180deg,#f7c948,#e0a21a)}
+    .second .block{height:70px;background:linear-gradient(180deg,#cdd6de,#9fb0bd)}
+    .third .block{height:52px;background:linear-gradient(180deg,#d9a06d,#b9743f)}
+    .list{margin-top:10px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+    .row{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:9px 12px;border:1px solid var(--line)}
+    .rank{width:24px;text-align:center;font-weight:800;color:var(--mute)}
+    .row .ava{width:36px;height:36px;font-size:14px;border-width:2px;box-shadow:none;flex:none}
+    .mid{flex:1;min-width:0}
+    .mid .name{font-size:14px}.sub{font-size:11.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .bar{height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:5px}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-d));border-radius:6px}
+    .score{min-width:84px;font-weight:800;color:var(--brand-d);text-align:right;white-space:nowrap}.score small{font-weight:600;color:var(--mute);margin-left:2px}
+    .empty{padding:22px;text-align:center;color:var(--mute);font-size:13px}
+    .foot{font-size:11px;color:var(--mute);text-align:center;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="top"><h1>🏆 Leaderboard</h1><div class="seg"><button id="bp" class="on">People</button><button id="bt">Teams</button></div></div>
+  <div id="app"><div class="empty">Loading…</div></div>
+  <div class="foot" id="foot"></div>
+  <script type="module">
+    import { API_URL } from './config.js';
+    const demo = !API_URL || new URLSearchParams(location.search).has('demo');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const COLORS = ['#7048e8', '#1c7ed6', '#2f9e44', '#f08c00', '#e03131', '#0b8585', '#c2255c'];
+    const color = (s) => COLORS[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
+    const ini = (s) => (s || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+    let data = null;
+    let view = 'people';
+
+    async function load() {
+      if (demo) {
+        return {
+          people: [['Mia', 'Team Austin', 1810, 9], ['Dan', 'Team Austin', 1675, 4], ['Jordan', 'Team ICT', 1240, 6], ['Priya', 'Team Well', 1190, 2], ['Caleb', 'Team Well', 1020, 0], ['Hannah', 'Team ICT', 870, 0], ['Sam', '', 640, 0]]
+            .map(([name, team, points, streak]) => ({ name, team, points, streak, level: Math.floor(points / 300) + 1 })),
+          teams: [{ name: 'Team Austin', members: 2, points: 3485 }, { name: 'Team ICT', members: 2, points: 2110 }, { name: 'Team Well', members: 2, points: 2210 }].sort((a, b) => b.points - a.points),
+        };
+      }
+      const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'publicLeaderboard' }) });
+      if (!res.ok) throw new Error('The leaderboard is not available yet.');
+      return res.json();
+    }
+
+    function paint() {
+      const rows = (view === 'people' ? data.people : data.teams).map((r) => ({ ...r }));
+      if (!rows.length) { document.getElementById('app').innerHTML = '<div class="empty">No players yet. Log a conversation to get on the board! 🙌</div>'; return; }
+      const max = Math.max(...rows.map((r) => r.points), 1);
+      const sub = (r) => (view === 'people' ? [r.team || 'Solo', r.level ? `Level ${r.level}` : '', r.streak ? `🔥 ${r.streak}-day streak` : ''].filter(Boolean).join(' · ') : `${r.members} member${r.members === 1 ? '' : 's'}`);
+      const top = rows.slice(0, 3);
+      const order = top.length === 3 ? [1, 0, 2] : top.map((_, i) => i);
+      const cls = ['first', 'second', 'third'];
+      const podium = `<div class="stage"><div class="podium">${order.map((i) => { const r = top[i]; return `
+        <div class="spot ${cls[i]}"><div class="who"><div class="crown">${i === 0 ? '👑' : ''}</div><div class="ava" style="background:${color(r.name)}">${esc(ini(r.name))}</div><div class="name">${esc(r.name)}</div><div class="pts"><b>${r.points.toLocaleString()}</b> pts</div></div><div class="block">${i + 1}</div></div>`; }).join('')}</div></div>`;
+      const rest = rows.slice(3);
+      const list = rest.length ? `<div class="list">${rest.map((r, i) => `
+        <div class="row"><div class="rank">${i + 4}</div><div class="ava" style="background:${color(r.name)}">${esc(ini(r.name))}</div>
+          <div class="mid"><div class="name">${esc(r.name)}</div><div class="sub">${esc(sub(r))}</div><div class="bar"><i style="width:${Math.max(3, Math.round((r.points / max) * 100))}%"></i></div></div>
+          <div class="score">${r.points.toLocaleString()}<small>pts</small></div></div>`).join('')}</div>` : '';
+      const subs = top.length < 3 ? `<div class="list">${top.map((r, i) => `<div class="row"><div class="rank">${i + 1}</div><div class="mid"><div class="sub">${esc(sub(r))}</div></div></div>`).join('')}</div>` : '';
+      document.getElementById('app').innerHTML = podium + (top.length === 3 ? '' : subs) + list;
+    }
+
+    const set = (v) => { view = v; document.getElementById('bp').classList.toggle('on', v === 'people'); document.getElementById('bt').classList.toggle('on', v === 'teams'); if (data) paint(); };
+    document.getElementById('bp').onclick = () => set('people');
+    document.getElementById('bt').onclick = () => set('teams');
+    async function refresh() {
+      try { data = await load(); paint(); document.getElementById('foot').textContent = 'Updates as people log in the Well Go app'; }
+      catch (e) { if (!data) document.getElementById('app').innerHTML = `<div class="empty">${esc(e.message || "The leaderboard couldn't load.")}</div>`; }
+    }
+    refresh();
+    setInterval(refresh, 60000);
+  </script>
+</body>
+</html>

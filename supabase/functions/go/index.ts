@@ -659,6 +659,24 @@ const actions = {
     return { countries: [...counts].map(([name, count]) => ({ name, count })).sort((x, y) => y.count - x.count) };
   },
 
+  // The leaderboard for the Notion tracker's embedded widget. First names, teams, and points only:
+  // no codes, roles, contact details, or notes.
+  async publicLeaderboard() {
+    const teams = await loadTeams();
+    const players = (await loadPlayers(teams)).filter((p) => p.active);
+    const people = players
+      .map((p) => ({ name: p.name.split(" ")[0], team: p.teamName, points: p.points, streak: p.streak, level: levelOf(p.points) }))
+      .sort((x, y) => y.points - x.points);
+    const teamRows = teams
+      .filter((t) => t.active)
+      .map((t) => {
+        const ms = players.filter((p) => p.teamId === t.id);
+        return { name: t.name, members: ms.length, points: ms.reduce((s, p) => s + p.points, 0) };
+      })
+      .sort((x, y) => y.points - x.points);
+    return { people, teams: teamRows };
+  },
+
   // Names for the sign-in screen. Only names and teams; never codes.
   async players() {
     const teams = await loadTeams();
