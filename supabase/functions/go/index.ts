@@ -645,6 +645,20 @@ function canonicalCountry(text) {
 // ---------- Actions ----------
 
 const actions = {
+  // The countries and people groups the whole team has talked to, with how many conversations
+  // each. Country names and counts only: no people, no notes, no photos. The Notion tracker page
+  // embeds a map built from this.
+  async teamCountries() {
+    const rows = await query(DB.interactions, { filter: { property: "Background / nation", rich_text: { is_not_empty: true } } }, 2000);
+    const counts = new Map();
+    for (const r of rows) {
+      if (P.select(r, "Status") === "Sent back") continue;
+      const name = canonicalCountry(P.text(r, "Background / nation").trim());
+      if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return { countries: [...counts].map(([name, count]) => ({ name, count })).sort((x, y) => y.count - x.count) };
+  },
+
   // Names for the sign-in screen. Only names and teams; never codes.
   async players() {
     const teams = await loadTeams();

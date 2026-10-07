@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Well Go · Where we've been</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root{--bg:#ffffff;--ink:#182330;--mute:#5f6b78;--sea:#cfe8ee;--land:#d7dfe0;--line:#ffffff;--brand:#33cccc;--brand-d:#0b8585}
+    @media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#eef4f6;--mute:#9bb0bd;--sea:#10242e;--land:#34424a;--line:#191919}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+    body{display:flex;flex-direction:column;padding:8px}
+    .tiles{display:flex;gap:8px;margin-bottom:8px}
+    .tile{flex:1;text-align:center;border:1px solid rgba(128,128,128,.25);border-radius:10px;padding:6px 4px}
+    .tile b{display:block;font-size:22px;color:var(--brand-d)}.tile span{font-size:11px;color:var(--mute)}
+    @media (prefers-color-scheme:dark){.tile b{color:var(--brand)}}
+    #map{flex:1;min-height:220px;border-radius:12px;background:var(--sea)}
+    .leaflet-container{background:var(--sea);font:inherit}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--mute);margin-top:6px}
+    .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+    #small{font-size:12px;color:var(--mute);margin-top:6px}
+    #msg{font-size:13px;color:var(--mute);padding:6px 2px}
+  </style>
+</head>
+<body>
+  <div class="tiles">
+    <div class="tile"><b id="nc">–</b><span>countries</span></div>
+    <div class="tile"><b id="np">–</b><span>people groups</span></div>
+    <div class="tile"><b id="nt">–</b><span>conversations</span></div>
+  </div>
+  <div id="msg">Loading…</div>
+  <div id="map"></div>
+  <div class="legend"><span><i style="background:var(--land)"></i>Not yet</span><span><i style="background:#8fe3e3"></i>1 to 2</span><span><i style="background:#33cccc"></i>3 to 9</span><span><i style="background:#0b8585"></i>10 or more</span></div>
+  <div id="small"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module">
+    import { API_URL } from './config.js';
+    import { COUNTRIES, flag, findCountry } from './countries.js';
+    const $ = (id) => document.getElementById(id);
+    const demo = !API_URL || new URLSearchParams(location.search).has('demo');
+    const colorFor = (n) => (n >= 10 ? '#0b8585' : n >= 3 ? '#33cccc' : '#8fe3e3');
+    try {
+      let list;
+      if (demo) {
+        list = [['Ethiopia', 4], ['Mexico', 12], ['United States', 30], ['Vietnam', 3], ['Brazil', 2], ['Nigeria', 1], ['Singapore', 2], ['Kurdish', 3]].map(([name, count]) => ({ name, count }));
+      } else {
+        const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'teamCountries' }) });
+        if (!res.ok) throw new Error('The team data is not available yet.');
+        list = (await res.json()).countries;
+      }
+      const byCode = new Map();
+      for (const x of list) { const c = findCountry(x.name); if (c) byCode.set(c.code, (byCode.get(c.code) || 0) + x.count); }
+      const found = [...byCode].map(([code, n]) => ({ c: COUNTRIES.find((k) => k.code === code), n }));
+      $('nc').textContent = found.filter((x) => !x.c.people).length;
+      $('np').textContent = found.filter((x) => x.c.people).length;
+      $('nt').textContent = found.reduce((s, x) => s + x.n, 0);
+      $('msg').remove();
+      const world = await (await fetch('https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json')).json();
+      const m = L.map('map', { zoomControl: true, minZoom: -1, maxZoom: 6, attributionControl: false, zoomSnap: 0.25, scrollWheelZoom: false });
+      const drawn = new Set();
+      L.geoJSON(world, {
+        style: (f) => { const c = findCountry(f.properties.name); const n = c ? byCode.get(c.code) : 0; return n ? { fillColor: colorFor(n), fillOpacity: 1, color: '#0b8585', weight: 0.8 } : { fillColor: getComputedStyle(document.documentElement).getPropertyValue('--land'), fillOpacity: 1, color: getComputedStyle(document.documentElement).getPropertyValue('--line'), weight: 0.6 }; },
+        onEachFeature: (f, layer) => { const c = findCountry(f.properties.name); if (c) { drawn.add(c.code); const n = byCode.get(c.code); layer.bindTooltip(`${flag(c.code)} ${c.name}${n ? ` · ${n} conversation${n > 1 ? 's' : ''}` : ''}`, { sticky: true }); } },
+      }).addTo(m);
+      const fit = () => { m.invalidateSize(); m.fitBounds([[-56, -168], [78, 178]], { animate: false }); };
+      fit(); setTimeout(fit, 200); addEventListener('resize', fit);
+      const hidden = found.filter((x) => x.c.people || !drawn.has(x.c.code));
+      if (hidden.length) $('small').innerHTML = 'Not shown on the map: ' + hidden.map((x) => `${flag(x.c.code)} ${x.c.name} (${x.n})`).join(', ');
+    } catch (e) {
+      $('msg').textContent = e.message || "The map couldn't load.";
+    }
+  </script>
+</body>
+</html>
