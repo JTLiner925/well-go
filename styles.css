@@ -82,3 +82,6 @@ input,select,textarea{font:inherit;color:var(--ink);background:var(--card);borde
 .badge .b{font-size:30px;width:58px;height:58px;border-radius:50%;background:var(--card);box-shadow:var(--shadow);display:grid;place-items:center;margin:0 auto 4px}.badge.off .b{filter:grayscale(1);opacity:.4}
 .demo{background:var(--navy);color:#fff;text-align:center;font-size:12px;padding:6px;border-radius:10px;margin-bottom:10px}
 a{color:var(--brand-t)}
+.cl{position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow:hidden;margin-top:4px}
+.cl button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);padding:11px 14px;font-size:15px;font-family:inherit;cursor:pointer;border-bottom:1px solid var(--line)}
+.cl button:last-child{border:0}.cl button.hot,.cl button:hover{background:rgba(51,204,204,.2)}

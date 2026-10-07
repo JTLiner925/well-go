@@ -394,7 +394,7 @@ export const CHALLENGES = [
   "id": "30",
   "emoji": "🛂",
   "title": "Passport Complete",
-  "description": "Fill the Nations Passport (20) or the Places Passport (12).",
+  "description": "Stamp 25 countries on the Nations Passport, or fill the Places Passport.",
   "tier": "Legendary",
   "points": 200,
   "proof": "Leader approval",

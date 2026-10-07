@@ -404,6 +404,220 @@ async function patchPlayer(id, props) {
   await notion(`/pages/${id}`, "PATCH", { properties: props });
 }
 
+// ---------- Countries ----------
+// Same list as countries.js in the app. Typed names are matched to it so
+// "USA" and "United States" can't become two different stamps.
+const COUNTRY_RAW = `AF|Afghanistan
+AL|Albania
+DZ|Algeria
+AD|Andorra
+AO|Angola
+AG|Antigua and Barbuda
+AR|Argentina
+AM|Armenia
+AU|Australia
+AT|Austria
+AZ|Azerbaijan
+BS|Bahamas
+BH|Bahrain
+BD|Bangladesh
+BB|Barbados
+BY|Belarus
+BE|Belgium
+BZ|Belize
+BJ|Benin
+BT|Bhutan
+BO|Bolivia
+BA|Bosnia and Herzegovina
+BW|Botswana
+BR|Brazil
+BN|Brunei
+BG|Bulgaria
+BF|Burkina Faso
+BI|Burundi
+CV|Cabo Verde|Cape Verde
+KH|Cambodia
+CM|Cameroon
+CA|Canada
+CF|Central African Republic
+TD|Chad
+CL|Chile
+CN|China
+CO|Colombia
+KM|Comoros
+CG|Congo (Republic)|Congo-Brazzaville,Republic of the Congo
+CD|Congo (DR)|DRC,Democratic Republic of the Congo,Zaire,Congo-Kinshasa
+CR|Costa Rica
+CI|Côte d'Ivoire|Ivory Coast
+HR|Croatia
+CU|Cuba
+CY|Cyprus
+CZ|Czechia|Czech Republic
+DK|Denmark
+DJ|Djibouti
+DM|Dominica
+DO|Dominican Republic
+EC|Ecuador
+EG|Egypt
+SV|El Salvador
+GQ|Equatorial Guinea
+ER|Eritrea
+EE|Estonia
+SZ|Eswatini|Swaziland
+ET|Ethiopia
+FJ|Fiji
+FI|Finland
+FR|France
+GA|Gabon
+GM|Gambia
+GE|Georgia
+DE|Germany
+GH|Ghana
+GR|Greece
+GD|Grenada
+GT|Guatemala
+GN|Guinea
+GW|Guinea-Bissau
+GY|Guyana
+HT|Haiti
+HN|Honduras
+HK|Hong Kong
+HU|Hungary
+IS|Iceland
+IN|India
+ID|Indonesia
+IR|Iran|Persia
+IQ|Iraq
+IE|Ireland
+IL|Israel
+IT|Italy
+JM|Jamaica
+JP|Japan
+JO|Jordan
+KZ|Kazakhstan
+KE|Kenya
+KI|Kiribati
+XK|Kosovo
+KW|Kuwait
+KG|Kyrgyzstan
+LA|Laos
+LV|Latvia
+LB|Lebanon
+LS|Lesotho
+LR|Liberia
+LY|Libya
+LI|Liechtenstein
+LT|Lithuania
+LU|Luxembourg
+MO|Macao|Macau
+MG|Madagascar
+MW|Malawi
+MY|Malaysia
+MV|Maldives
+ML|Mali
+MT|Malta
+MH|Marshall Islands
+MR|Mauritania
+MU|Mauritius
+MX|Mexico
+FM|Micronesia
+MD|Moldova
+MC|Monaco
+MN|Mongolia
+ME|Montenegro
+MA|Morocco
+MZ|Mozambique
+MM|Myanmar|Burma
+NA|Namibia
+NR|Nauru
+NP|Nepal
+NL|Netherlands|Holland
+NZ|New Zealand
+NI|Nicaragua
+NE|Niger
+NG|Nigeria
+KP|North Korea
+MK|North Macedonia|Macedonia
+NO|Norway
+OM|Oman
+PK|Pakistan
+PW|Palau
+PS|Palestine|Gaza,West Bank
+PA|Panama
+PG|Papua New Guinea
+PY|Paraguay
+PE|Peru
+PH|Philippines
+PL|Poland
+PT|Portugal
+PR|Puerto Rico
+QA|Qatar
+RO|Romania
+RU|Russia
+RW|Rwanda
+KN|Saint Kitts and Nevis
+LC|Saint Lucia
+VC|Saint Vincent and the Grenadines
+WS|Samoa
+SM|San Marino
+ST|São Tomé and Príncipe|Sao Tome
+SA|Saudi Arabia
+SN|Senegal
+RS|Serbia
+SC|Seychelles
+SL|Sierra Leone
+SG|Singapore
+SK|Slovakia
+SI|Slovenia
+SB|Solomon Islands
+SO|Somalia
+ZA|South Africa
+KR|South Korea
+SS|South Sudan
+ES|Spain
+LK|Sri Lanka
+SD|Sudan
+SR|Suriname
+SE|Sweden
+CH|Switzerland
+SY|Syria
+TW|Taiwan
+TJ|Tajikistan
+TZ|Tanzania
+TH|Thailand
+TL|Timor-Leste|East Timor
+TG|Togo
+TO|Tonga
+TT|Trinidad and Tobago
+TN|Tunisia
+TR|Türkiye|Turkey
+TM|Turkmenistan
+TV|Tuvalu
+UG|Uganda
+UA|Ukraine
+AE|United Arab Emirates|UAE,Emirates
+GB|United Kingdom|UK,England,Scotland,Wales,Britain,Great Britain,Northern Ireland
+US|United States|USA,America,United States of America,US
+UY|Uruguay
+UZ|Uzbekistan
+VU|Vanuatu
+VA|Vatican City|Vatican,Holy See
+VE|Venezuela
+VN|Vietnam
+YE|Yemen
+ZM|Zambia
+ZW|Zimbabwe`;
+const plainName = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const COUNTRIES = COUNTRY_RAW.split("\n").map((line) => {
+  const [code, name, aliases = ""] = line.split("|");
+  return { name, terms: [name, ...(aliases ? aliases.split(",") : [])].map(plainName) };
+});
+function canonicalCountry(text) {
+  const t = plainName(text);
+  if (!t) return "";
+  return COUNTRIES.find((c) => c.terms.includes(t))?.name ?? text;
+}
+
 // ---------- Actions ----------
 
 const actions = {
@@ -493,14 +707,14 @@ const actions = {
     const input = {
       contactName: str(body.contactName, 80),
       contactPhone: str(body.contactPhone, 40),
-      nation: str(body.nation, 80),
+      nation: canonicalCountry(str(body.nation, 80)),
       place: str(body.place, 40),
       outcome: str(body.outcome, 40),
       light: str(body.light, 20),
       need: str(body.need, 2000),
       followUp: !!body.followUp,
     };
-    if (ch?.passport === "Nations" && !input.nation) throw new HttpError(400, "Add the person's background for the passport.");
+    if (ch?.passport === "Nations" && !input.nation) throw new HttpError(400, "Pick the person's country for the passport.");
     if (ch?.passport === "Places" && !input.place) throw new HttpError(400, "Pick the kind of place for the passport.");
     const needsPhoto = ch && ch.proof === "Photo";
     if (needsPhoto && !body.photo?.data) throw new HttpError(400, "This challenge needs a photo.");

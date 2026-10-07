@@ -1,6 +1,8 @@
 import { API_URL, NOTION_URL, SEASON_LABEL, EVENT } from './config.js';
+import { COUNTRIES, flag, findCountry, searchCountries } from './countries.js';
 
-const DEMO = !API_URL;
+// Add ?demo to the address to try the app with made-up people (nothing real is read or saved).
+const DEMO = !API_URL || new URLSearchParams(location.search).has('demo');
 const app = document.getElementById('app');
 const $ = (s, e = document) => e.querySelector(s);
 const $$ = (s, e = document) => [...e.querySelectorAll(s)];
@@ -11,7 +13,7 @@ const COLORS = ['#7048e8', '#1c7ed6', '#2f9e44', '#f08c00', '#e03131', '#0b8585'
 const colorOf = (s) => COLORS[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
 const av = (name) => `<div class="av" style="background:${colorOf(name)}">${esc(initials(name))}</div>`;
 
-const NATIONS = ['Mexican', 'Nigerian', 'Vietnamese', 'Indian', 'Chinese', 'Syrian', 'Brazilian', 'Filipino', 'Ethiopian', 'Korean', 'Salvadoran', 'Somali', 'American'];
+const MILESTONES = [10, 25, 50, 100, COUNTRIES.length];
 const PLACES = ['Coffee shop', 'Park', 'Grocery', 'Bus stop', 'Campus', 'Bar / patio', 'Laundromat', 'Gym', 'Hospital', 'Mall', 'Under the bridge', 'Event', 'Other'];
 const OUTCOMES = ['Friendly chat', 'Prayed together', 'Healing reported', 'Heard the gospel', 'Said yes to Jesus', 'Not interested'];
 const LIGHTS = { Green: '#2f9e44', Yellow: '#f0b400', Red: '#e03131', Believer: '#1c7ed6' };
@@ -25,7 +27,7 @@ const isLeader = (m) => m && m.role !== 'Player';
 
 // ---------- Session ----------
 
-const SESSION_KEY = 'wg.session';
+const SESSION_KEY = DEMO ? 'wg.demo.session' : 'wg.session';
 let session = null;
 try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { session = null; }
 function saveSession(s) {
@@ -173,7 +175,9 @@ async function home() {
   const [h, j, b] = await Promise.all([api('home'), api('journey').catch(() => null), getBoot()]);
   tabBadge = (h.quiet || 0);
   drawTabs('home');
-  const nationsGot = h.nations.filter(Boolean);
+  const seen = new Set();
+  const gotCountries = h.nations.map((n) => findCountry(n)).filter((c) => c && !seen.has(c.code) && seen.add(c.code));
+  const nextMile = MILESTONES.find((m) => m > gotCountries.length) ?? COUNTRIES.length;
   const placesGot = new Set(h.places);
   const giftNames = [...new Set(b.challenges.map((c) => c.gift).filter(Boolean))];
   const easy = b.challenges.filter((c) => c.tier === 'Easy');
@@ -193,9 +197,10 @@ async function home() {
     <div class="row" style="gap:10px;margin-bottom:12px">
       ${[[h.conversations, 'conversations'], [h.prayedFor, 'prayed for'], [h.needFollowUp, 'need follow-up']].map(([n, l]) => `<div class="card sp" style="margin:0;text-align:center"><div class="pts" style="font-size:22px">${n}</div><div class="mute">${l}</div></div>`).join('')}
     </div>
-    <div class="card"><div class="row"><b>🛂 Nations Passport</b><div class="sp"></div><span class="mute">${new Set(nationsGot.map((n) => n.toLowerCase())).size} / 20</span></div>
-      <div class="mute">Talk with people from different backgrounds. Each new one earns a stamp and +10.</div>
-      <div class="stamps">${Array.from({ length: 20 }, (_, i) => nationsGot[i] ? `<div class="stamp got">${esc(nationsGot[i])}</div>` : '<div class="stamp">?</div>').join('')}</div></div>
+    <div class="card"><div class="row"><b>🛂 Nations Passport</b><div class="sp"></div><span class="mute">${gotCountries.length} of ${COUNTRIES.length}</span></div>
+      <div class="mute">Talk with people from around the world. Each new country earns a stamp and +10. Next milestone: ${nextMile}.</div>
+      <div class="bar" style="margin-top:8px"><i style="width:${Math.min(100, Math.round((gotCountries.length / nextMile) * 100))}%"></i></div>
+      <div class="stamps">${gotCountries.map((c) => `<div class="stamp got" title="${esc(c.name)}"><div><div style="font-size:20px">${flag(c.code)}</div>${esc(c.name)}</div></div>`).join('')}${Array.from({ length: Math.max(0, 10 - gotCountries.length) }, () => '<div class="stamp">?</div>').join('')}</div></div>
     <div class="card"><div class="row"><b>📍 Places Passport</b><div class="sp"></div><span class="mute">${placesGot.size} / ${PLACES.length - 1}</span></div>
       <div class="mute">Pray or talk somewhere new. Each new kind of place earns a stamp and +10.</div>
       <div class="pz">${PLACES.filter((p) => p !== 'Other').map((p) => `<span class="${placesGot.has(p) ? 'got' : ''}">${esc(p)}</span>`).join('')}</div></div>
@@ -280,8 +285,9 @@ async function openLog(chId) {
     <select id="lch"><option value="">Just a conversation</option>${b.challenges.map((c) => `<option value="${esc(c.id)}" ${ch?.id === c.id ? 'selected' : ''}>${esc(c.title)} (+${c.points})</option>`).join('')}</select>
     <div class="label">Who did you talk to? <span style="text-transform:none;font-weight:400">(private: you, your leader, admins)</span></div>
     <input id="lname" placeholder="First name" autocomplete="off">
-    <div class="label">Background / nation (for your passport)</div>
-    <input id="lnation" list="nl" placeholder="e.g. Ethiopian"><datalist id="nl">${NATIONS.map((n) => `<option value="${n}">`).join('')}</datalist>
+    <div class="label">Country (for your Nations Passport)</div>
+    <div style="position:relative"><input id="lnation" autocomplete="off" autocapitalize="words" placeholder="Start typing a country…"><div id="lcl" class="cl" hidden></div></div>
+    <p class="mute" id="lcn" style="margin-top:4px"></p>
     <div class="label">Where were you? (for your Places Passport)</div>${chips('place', PLACES)}
     <div class="label">How did it go?</div>${chips('outcome', OUTCOMES, 'Friendly chat')}
     <div class="label">Light</div>${chips('light', Object.keys(LIGHTS))}
@@ -292,6 +298,29 @@ async function openLog(chId) {
       <label class="photo-up" id="lphoto">📷 Tap to take or choose a photo<input type="file" accept="image/*" capture="environment" id="lfile" hidden></label></div>
     <div class="row" style="margin-top:16px"><button class="btn ghost" id="lcancel">Cancel</button><button class="btn" id="lsave">${ch?.proof === 'Leader approval' ? 'Submit for approval' : 'Save'}</button></div>`);
   $('#lfu').onclick = () => $('#lfu').classList.toggle('on');
+  const nin = $('#lnation');
+  const ncl = $('#lcl');
+  let hot = 0;
+  const choose = (c) => { nin.value = c.name; ncl.hidden = true; $('#lcn').textContent = `${flag(c.code)} ${c.name}`; };
+  const showList = () => {
+    const found = searchCountries(nin.value);
+    $('#lcn').textContent = '';
+    const exact = findCountry(nin.value);
+    if (exact) $('#lcn').textContent = `${flag(exact.code)} ${exact.name}`;
+    hot = 0;
+    ncl.hidden = !found.length || (exact && found.length === 1);
+    ncl.innerHTML = found.map((c, i) => `<button type="button" class="${i === hot ? 'hot' : ''}" data-code="${c.code}">${flag(c.code)} ${esc(c.name)}</button>`).join('');
+  };
+  nin.oninput = showList;
+  nin.onfocus = () => { if (nin.value) showList(); };
+  nin.onkeydown = (e) => {
+    const items = $$('button', ncl);
+    if (ncl.hidden || !items.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); hot = (hot + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length; items.forEach((b, i) => b.classList.toggle('hot', i === hot)); }
+    if (e.key === 'Enter') { e.preventDefault(); choose(COUNTRIES.find((c) => c.code === items[hot].dataset.code)); }
+  };
+  ncl.onmousedown = (e) => { const b = e.target.closest('button'); if (b) { e.preventDefault(); choose(COUNTRIES.find((c) => c.code === b.dataset.code)); } };
+  nin.onblur = () => setTimeout(() => { ncl.hidden = true; const c = findCountry(nin.value); if (c) nin.value = c.name; }, 120);
   $('#lcancel').onclick = closeSheet;
   $('#lfile').onchange = async (e) => {
     const f = e.target.files[0];
@@ -308,8 +337,11 @@ async function openLog(chId) {
     const chosen = $('#lch').value || '';
     const c2 = b.challenges.find((c) => c.id === chosen);
     if (c2?.proof === 'Photo' && !photo) return toast('📷 Add a photo first.');
+    const country = findCountry($('#lnation').value);
+    if ($('#lnation').value.trim() && !country) return toast('Pick a country from the list.');
+    if (c2?.passport === 'Nations' && !country) return toast('Pick the person’s country for the passport.');
     const payload = {
-      challengeId: chosen, contactName: $('#lname').value, contactPhone: $('#lphone').value, nation: $('#lnation').value, place: pick('place'),
+      challengeId: chosen, contactName: $('#lname').value, contactPhone: $('#lphone').value, nation: country ? country.name : '', place: pick('place'),
       outcome: pick('outcome'), light: pick('light'), need: $('#lneed').value, followUp: $('#lfu').classList.contains('on'),
       ...(fix || {}), ...(photo ? { photo: { name: photo.name, type: photo.type, data: photo.data } } : {}),
     };
