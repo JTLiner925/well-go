@@ -85,3 +85,4 @@ a{color:var(--brand-t)}
 .cl{position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow:hidden;margin-top:4px}
 .cl button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);padding:11px 14px;font-size:15px;font-family:inherit;cursor:pointer;border-bottom:1px solid var(--line)}
 .cl button:last-child{border:0}.cl button.hot,.cl button:hover{background:rgba(51,204,204,.2)}
+.wmap{background:#cfe8ee;height:260px}@media (prefers-color-scheme:dark){.wmap{background:#10242e}}

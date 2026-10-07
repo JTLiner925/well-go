@@ -1,4 +1,5 @@
-// Every country a passport stamp can be for. One line each: ISO code | name | aliases (comma separated).
+// Every country (plus a few people groups) a passport stamp can be for.
+// One line each: ISO code (or x-name for a people group) | name | aliases (comma separated) | symbol for people groups.
 // People type a few letters and pick from the matches; aliases like "USA" or "Ivory Coast" are searched too.
 const RAW = `AF|Afghanistan
 AL|Albania
@@ -11,7 +12,7 @@ AM|Armenia
 AU|Australia
 AT|Austria
 AZ|Azerbaijan
-BS|Bahamas
+BS|Bahamas|The Bahamas
 BH|Bahrain
 BD|Bangladesh
 BB|Barbados
@@ -156,7 +157,7 @@ SM|San Marino
 ST|São Tomé and Príncipe|Sao Tome
 SA|Saudi Arabia
 SN|Senegal
-RS|Serbia
+RS|Serbia|Republic of Serbia
 SC|Seychelles
 SL|Sierra Leone
 SG|Singapore
@@ -176,7 +177,7 @@ CH|Switzerland
 SY|Syria
 TW|Taiwan
 TJ|Tajikistan
-TZ|Tanzania
+TZ|Tanzania|United Republic of Tanzania
 TH|Thailand
 TL|Timor-Leste|East Timor
 TG|Togo
@@ -199,17 +200,43 @@ VE|Venezuela
 VN|Vietnam
 YE|Yemen
 ZM|Zambia
-ZW|Zimbabwe`;
+ZW|Zimbabwe
+x-kurdish|Kurdish|Kurd,Kurdistan|☀️
+x-tibetan|Tibetan|Tibet|🏔️
+x-uyghur|Uyghur|Uighur|🌙
+x-native-american|Native American|American Indian,Indigenous American,First Nations,Navajo,Cherokee,Lakota,Apache|🪶
+x-alaska-native|Alaska Native|Inupiat,Yupik|🐻‍❄️
+x-native-hawaiian|Native Hawaiian|Hawaiian,Pacific Islander|🌺
+x-aboriginal-australian|Aboriginal Australian|Aboriginal,Torres Strait Islander|🪃
+x-maori|Māori|Maori|🌿
+x-inuit|Inuit|Eskimo|🧊
+x-sami|Sámi|Sami,Lapp|🦌
+x-romani|Romani|Roma,Gypsy,Traveller|🎻
+x-hmong|Hmong|Mong|🧵
+x-karen|Karen|Kayin|🐘
+x-rohingya|Rohingya||🤲
+x-amazigh|Amazigh|Berber,Tuareg|🏜️
+x-assyrian|Assyrian|Chaldean,Syriac|🕊️
+x-yazidi|Yazidi|Yezidi|🌅
+x-bedouin|Bedouin|Beduin|🐪
+x-pashtun|Pashtun|Pathan,Pakhtun|⛰️
+x-hazara|Hazara||⛰️
+x-basque|Basque|Euskal|🧩
+x-maasai|Maasai|Masai|🦁
+x-tamil|Tamil|Tamil Eelam|🪔
+x-diaspora|Mixed or multiple backgrounds|Mixed,Multiracial,Not sure|🌐`;
 
 export const COUNTRIES = RAW.split('\n').map((line) => {
-  const [code, name, aliases = ''] = line.split('|');
-  return { code, name, aliases: aliases ? aliases.split(',') : [] };
+  const [code, name, aliases = '', emoji = ''] = line.split('|');
+  return { code, name, aliases: aliases ? aliases.split(',') : [], emoji, people: code.startsWith('x-') };
 });
 
 const plain = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 const INDEX = COUNTRIES.map((c) => ({ c, terms: [c.name, ...c.aliases].map(plain) }));
 
-export const flag = (code) => [...code].map((ch) => String.fromCodePoint(127397 + ch.charCodeAt(0))).join('');
+const EMOJI = Object.fromEntries(COUNTRIES.filter((c) => c.emoji).map((c) => [c.code, c.emoji]));
+// A country's flag, or the little symbol for a people group.
+export const flag = (code) => EMOJI[code] ?? [...code].map((ch) => String.fromCodePoint(127397 + ch.charCodeAt(0))).join('');
 
 // The country whose name or alias is exactly this text, or null.
 export function findCountry(text) {

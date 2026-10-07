@@ -118,7 +118,7 @@ let tabBadge = 0;
 
 function drawTabs(active) {
   const tabs = [['home', '🏠', 'Home'], ['play', '🎯', 'Play'], ['map', '🗺️', 'Map'], ['ranks', '🏆', 'Ranks'], ['chat', '💬', 'Chat'], ['more', '☰', 'More']];
-  const mapTo = { followups: 'more', stats: 'more', leader: 'more', settings: 'more' };
+  const mapTo = { followups: 'more', stats: 'more', leader: 'more', settings: 'more', passport: 'home' };
   const a = mapTo[active] || active;
   $('#tabs').innerHTML = `<div class="in">${tabs.map(([r, ic, l]) =>
     `<a class="tab ${r === a ? 'on' : ''}" href="#/${r}"><span class="ic">${ic}</span>${l}${r === 'more' && tabBadge ? `<span class="dot" style="background:var(--purple)">${tabBadge}</span>` : ''}</a>`).join('')}</div>`;
@@ -127,7 +127,7 @@ function drawTabs(active) {
 async function render() {
   leave();
   const [name, arg] = location.hash.replace(/^#\/?/, '').split('/');
-  const R = { signin, home, play, map, ranks, chat, more, followups, stats, leader, settings };
+  const R = { signin, home, play, map, ranks, chat, more, followups, stats, leader, settings, passport };
   const view = R[name] ? name : 'home';
   if (!session && view !== 'signin') return go('signin');
   const authed = !!session && view !== 'signin';
@@ -198,8 +198,9 @@ async function home() {
       ${[[h.conversations, 'conversations'], [h.prayedFor, 'prayed for'], [h.needFollowUp, 'need follow-up']].map(([n, l]) => `<div class="card sp" style="margin:0;text-align:center"><div class="pts" style="font-size:22px">${n}</div><div class="mute">${l}</div></div>`).join('')}
     </div>
     <div class="card"><div class="row"><b>🛂 Nations Passport</b><div class="sp"></div><span class="mute">${gotCountries.length} of ${COUNTRIES.length}</span></div>
-      <div class="mute">Talk with people from around the world. Each new country earns a stamp and +10. Next milestone: ${nextMile}.</div>
+      <div class="mute">Talk with people from around the world. Each new country or people group earns a stamp and +10. Next milestone: ${nextMile}.</div>
       <div class="bar" style="margin-top:8px"><i style="width:${Math.min(100, Math.round((gotCountries.length / nextMile) * 100))}%"></i></div>
+      <a class="btn ghost sm" style="display:inline-block;margin-top:10px;text-decoration:none" href="#/passport">🗺️ See your world map</a>
       <div class="stamps">${gotCountries.map((c) => `<div class="stamp got" title="${esc(c.name)}"><div><div style="font-size:20px">${flag(c.code)}</div>${esc(c.name)}</div></div>`).join('')}${Array.from({ length: Math.max(0, 10 - gotCountries.length) }, () => '<div class="stamp">?</div>').join('')}</div></div>
     <div class="card"><div class="row"><b>📍 Places Passport</b><div class="sp"></div><span class="mute">${placesGot.size} / ${PLACES.length - 1}</span></div>
       <div class="mute">Pray or talk somewhere new. Each new kind of place earns a stamp and +10.</div>
@@ -211,6 +212,57 @@ async function home() {
     ${daily ? `<div class="card"><div class="row"><b>Today's easy win</b><div class="sp"></div><span class="pill easy">Easy</span></div><div class="chal" style="margin-top:8px" data-act="log" data-arg="${esc(daily.id)}"><div class="em">${emojiOf(daily)}</div><div class="sp"><b>${esc(daily.title)}</b><span class="mute">${esc(daily.description)}</span></div><span class="pts">+${daily.points}</span></div></div>` : ''}`;
   const g = $('[data-filter]');
   if (g) g.onclick = () => { playFilter = 'Gifts'; };
+}
+
+// ---------- World map of the Nations Passport ----------
+
+let worldData;
+async function loadWorld() {
+  if (!worldData) {
+    const res = await fetch('https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json');
+    if (!res.ok) throw new Error("The world map couldn't load.");
+    worldData = await res.json();
+  }
+  return worldData;
+}
+
+async function passport() {
+  const h = await api('home');
+  const seen = new Set();
+  const got = h.nations.map((n) => findCountry(n)).filter((c) => c && !seen.has(c.code) && seen.add(c.code));
+  const countries = got.filter((c) => !c.people);
+  const peoples = got.filter((c) => c.people);
+  app.innerHTML = `<a class="btn ghost sm" style="text-decoration:none" href="#/home">‹ Home</a><h2>My world</h2>
+    <div class="row" style="gap:10px;margin-bottom:12px">
+      <div class="card sp" style="margin:0;text-align:center"><div class="pts" style="font-size:24px">${countries.length}</div><div class="mute">countries</div></div>
+      <div class="card sp" style="margin:0;text-align:center"><div class="pts" style="font-size:24px">${peoples.length}</div><div class="mute">people groups</div></div>
+      <div class="card sp" style="margin:0;text-align:center"><div class="pts" style="font-size:24px">${COUNTRIES.filter((c) => !c.people).length - countries.length}</div><div class="mute">still to meet</div></div></div>
+    <div id="wmap" class="map wmap"></div>
+    <div class="legend"><span><i style="background:#33cccc"></i>Stamped</span><span><i style="background:#c9d6d6"></i>Not yet</span></div>
+    <div id="wsmall"></div>
+    <div class="label">Your stamps</div>
+    <div class="card">${got.length ? `<div class="pz" style="margin-top:0">${got.map((c) => `<span class="got">${flag(c.code)} ${esc(c.name)}</span>`).join('')}</div>` : '<p class="mute">Log a conversation and pick their country to earn your first stamp. 🌍</p>'}</div>`;
+  const stamped = new Set(countries.map((c) => c.code));
+  const [data] = await Promise.all([loadWorld(), loadLeaflet()]);
+  if (!document.contains($('#wmap'))) return;
+  const m = L.map('wmap', { zoomControl: true, minZoom: 1, maxZoom: 6, worldCopyJump: false, attributionControl: false, zoomSnap: 0.25 });
+  m.fitBounds([[-56, -168], [78, 178]]);
+  cleanup = () => m.remove();
+  const drawn = new Set();
+  L.geoJSON(data, {
+    style: (f) => {
+      const c = findCountry(f.properties.name);
+      return c && stamped.has(c.code) ? { fillColor: '#33cccc', fillOpacity: 0.95, color: '#0b8585', weight: 1 } : { fillColor: '#c9d6d6', fillOpacity: 1, color: '#ffffff', weight: 0.6 };
+    },
+    onEachFeature: (f, layer) => {
+      const c = findCountry(f.properties.name);
+      if (c) drawn.add(c.code);
+      layer.bindTooltip(c ? `${flag(c.code)} ${c.name}${stamped.has(c.code) ? ' ✔' : ''}` : esc(f.properties.name), { sticky: true });
+    },
+  }).addTo(m);
+  // Countries too small to show on the map.
+  const small = countries.filter((c) => !drawn.has(c.code));
+  if (small.length) $('#wsmall').innerHTML = `<p class="mute" style="margin-top:8px">Too small to see on the map: ${small.map((c) => `${flag(c.code)} ${esc(c.name)}`).join(', ')}</p>`;
 }
 
 // ---------- Play (challenges) ----------
@@ -285,8 +337,8 @@ async function openLog(chId) {
     <select id="lch"><option value="">Just a conversation</option>${b.challenges.map((c) => `<option value="${esc(c.id)}" ${ch?.id === c.id ? 'selected' : ''}>${esc(c.title)} (+${c.points})</option>`).join('')}</select>
     <div class="label">Who did you talk to? <span style="text-transform:none;font-weight:400">(private: you, your leader, admins)</span></div>
     <input id="lname" placeholder="First name" autocomplete="off">
-    <div class="label">Country (for your Nations Passport)</div>
-    <div style="position:relative"><input id="lnation" autocomplete="off" autocapitalize="words" placeholder="Start typing a country…"><div id="lcl" class="cl" hidden></div></div>
+    <div class="label">Country or people group (for your Nations Passport)</div>
+    <div style="position:relative"><input id="lnation" autocomplete="off" autocapitalize="words" placeholder="Start typing a country or people group…"><div id="lcl" class="cl" hidden></div></div>
     <p class="mute" id="lcn" style="margin-top:4px"></p>
     <div class="label">Where were you? (for your Places Passport)</div>${chips('place', PLACES)}
     <div class="label">How did it go?</div>${chips('outcome', OUTCOMES, 'Friendly chat')}
@@ -338,7 +390,7 @@ async function openLog(chId) {
     const c2 = b.challenges.find((c) => c.id === chosen);
     if (c2?.proof === 'Photo' && !photo) return toast('📷 Add a photo first.');
     const country = findCountry($('#lnation').value);
-    if ($('#lnation').value.trim() && !country) return toast('Pick a country from the list.');
+    if ($('#lnation').value.trim() && !country) return toast('Pick a country or people group from the list.');
     if (c2?.passport === 'Nations' && !country) return toast('Pick the person’s country for the passport.');
     const payload = {
       challengeId: chosen, contactName: $('#lname').value, contactPhone: $('#lphone').value, nation: country ? country.name : '', place: pick('place'),
