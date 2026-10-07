@@ -1,6 +1,6 @@
 // Address of the Supabase Edge Function that talks to Notion and the chat tables.
 // Leave it empty to run the app in demo mode with made-up people and data.
-export const API_URL = '';
+export const API_URL = 'https://zohiurezsbstkztxklbs.supabase.co/functions/v1/go';
 
 // "Open Home Base in Notion" link for leaders.
 export const NOTION_URL = 'https://app.notion.com/p/3f180be0bac48162bc75c0e48f4a2b23';
