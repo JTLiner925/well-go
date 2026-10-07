@@ -245,8 +245,10 @@ async function passport() {
   const stamped = new Set(countries.map((c) => c.code));
   const [data] = await Promise.all([loadWorld(), loadLeaflet()]);
   if (!document.contains($('#wmap'))) return;
-  const m = L.map('wmap', { zoomControl: true, minZoom: 1, maxZoom: 6, worldCopyJump: false, attributionControl: false, zoomSnap: 0.25 });
-  m.fitBounds([[-56, -168], [78, 178]]);
+  const m = L.map('wmap', { zoomControl: true, minZoom: -1, maxZoom: 6, worldCopyJump: false, attributionControl: false, zoomSnap: 0.25 });
+  const fit = () => { m.invalidateSize(); m.fitBounds([[-56, -168], [78, 178]], { animate: false }); };
+  fit();
+  setTimeout(fit, 150);
   cleanup = () => m.remove();
   const drawn = new Set();
   L.geoJSON(data, {
